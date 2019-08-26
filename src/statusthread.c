@@ -13,21 +13,16 @@
 #include <math.h>
 
 #define NUMTHREADS 7
-#define STOCK_QTTY 600
-#define STOCK_VALUE 10.13
-#define STOCK_QTTY2 0
-#define STOCK_VALUE2 0
+
 
 // headers
 void *printInfo(void *arg);
 void *getDate(void *arg);
-void *getStocks(void *arg);
 void *updateTime(void *arg);
 void *getVolume(void *arg);
 void *getMemory(void *arg);
-void *getStocks2(void *arg);
 void *getBattery(void *arg);
-
+void *getBrightness(void *arg);
 char *weekrussian(int num);
 char *monthrussian(int num);
 char *dayrussian(int num);
@@ -55,7 +50,7 @@ volatile char *memory = "";
 volatile char *battery = "";
 volatile char *time_now = "";
 volatile char *date = "";
-
+volatile char *bright = "";
 // main
 
 int main() {
@@ -75,13 +70,11 @@ int main() {
   i++;
   err[i] = pthread_create(&(th[i]),NULL,&getVolume,NULL);
   i++;
-  err[i] = pthread_create(&(th[i]),NULL,&getStocks,NULL);
-  i++;
   err[i] = pthread_create(&(th[i]),NULL,&getMemory,NULL);
   i++;
   err[i] = pthread_create(&(th[i]),NULL,&getBattery,NULL);
-  /* i++; */
-  /* err[i] = pthread_create(&(th[i]),NULL,&getStocks2,NULL); */
+  i++;
+  err[i] = pthread_create(&(th[i]),NULL,&getBrightness,NULL);
 
   for (int i=0; i<NUMTHREADS; i++) {
     if (err[i] != 0)
@@ -107,7 +100,7 @@ void *printInfo(void *arg) {
     pthread_mutex_lock(&mutex);
 
     // print com uma thread de stock
-    sprintf(output,"echo '%s %s ∵ %s ∵ %s ∵ %s'", date, time_now,vol, memory, battery);
+    sprintf(output,"echo '%s %s ∵ %s ∵ %s ∵ %s ∵ %s'", date, time_now,vol, bright, memory, battery);
     
     system(output);
     pthread_mutex_unlock(&mutex);
@@ -138,7 +131,6 @@ void *getBattery(void *arg) {
       fclose(f_status);
     }
     
-    
     f_actual = NULL;
     f_total = NULL;
     f_status=NULL;
@@ -152,6 +144,32 @@ void *getBattery(void *arg) {
   }
 }
 
+void *getBrightness(void *arg){
+  float brightness;
+  char phrase[8];
+  FILE *fp = NULL;
+
+  while(1) {
+    brightness = -1;
+    
+    fp = popen("xrandr --verbose | awk '/Brightness/ { print $2; exit }'","r");
+    
+    if (fp != NULL ){
+      fscanf(fp,"%f",&brightness);
+      brightness *= 100;
+      sprintf(phrase, "☼: %.0f%%", brightness);
+      pclose(fp);
+    }
+    
+    fp = NULL;
+    pthread_mutex_lock(&mutex);
+    bright = phrase;
+    pthread_mutex_unlock(&mutex);
+
+    usleep(100000);
+  }
+}
+
 // get the system sound volume using shell script
 void *getVolume(void *arg) {
   int volume;
@@ -161,8 +179,10 @@ void *getVolume(void *arg) {
   while(1) {
     volume = -1;
     
-    fp = popen("~/.sh/status/shell_scripts/getVolume.sh","r");
+    //fp = popen("~/.status_bar/shell_scripts/getVolume.sh","r");
 
+    fp = popen("amixer get Master |grep 'Mono: Playback' |awk '{print $4}'|sed 's/[^0-9\%]//g'","r");
+    
     if (fp != NULL ){
       fscanf(fp,"%d",&volume);
       sprintf(phrase, "♫: %d%%", volume);
@@ -183,7 +203,7 @@ void *getMemory(void *arg) {
   FILE *fp = NULL;
 
   while(1) {
-    fp = popen("~/.sh/status/shell_scripts/memory.sh","r");
+    fp = popen("~/.status_bar/shell_scripts/memory.sh","r");
 
     if (fp != NULL ){
       fgets(mem,30,fp);
@@ -197,113 +217,6 @@ void *getMemory(void *arg) {
   }
 }
 
-void *getStocks(void *arg) {
-  FILE *fp = NULL;
-  char text[200];
-  float value, variation, percentage;
-  while(1){
-    
-     fp = popen("~/.sh/status/shell_scripts/stocks.sh usim5","r");
-    if( fp != NULL) {
-      fscanf( fp,"%s %s %s %s %s %s %s %s %s %s %f %f %f", text, text, text, text, text, text, text, text, text, text, &value, &variation, &percentage);
-      
-      printf("%f %f %f\n", value, variation, percentage);
-      //printf( "%s %f %f %f", text, value, variation, percentage);
-      fclose(fp);
-    }
-    
-    sleep(5);
-  }
-}
-
-//get stock price using shell script
-void *getStocks2(void *arg){
-  char status[10], output[100], *aux="Carregando";
-  float var, perc, atual, inicial, lucro,full_perc;
-  FILE *fp;
-  int hour;
-
-  inicial = STOCK_QTTY * STOCK_VALUE;
-
-  pthread_mutex_lock(&mutex);
-  stocks.var = 0;
-  stocks.perc = 0;
-  stocks.atual = 0;
-  stocks.full_perc = 0;
-  stocks.status = aux;
-  stocks.lucro = 0;
-  if(NUMTHREADS == 6)
-    total = stocks.lucro + stocks2.lucro;
-  pthread_mutex_unlock(&mutex);
-
-  fp = popen("~/.sh/status/shell_scripts/stocks.sh usim5","r");
-
-  if (fp != NULL ){
-    fscanf(fp,"%s",status);
-    fscanf(fp,"%f",&var);
-    fscanf(fp,"%f",&perc);
-    fscanf(fp,"%f",&atual);
-
-    lucro = atual*STOCK_QTTY - inicial;
-    if(inicial != 0)
-      full_perc = 100*lucro/inicial;
-    else
-      full_perc = 0;
-  }
-
-  pthread_mutex_lock(&mutex);
-  stocks.var = var;
-  stocks.perc = perc;
-  stocks.atual = atual;
-  stocks.full_perc = full_perc;
-  stocks.status = status;
-  stocks.lucro = lucro;
-  total = stocks.lucro + stocks2.lucro;
-  pthread_mutex_unlock(&mutex);
-
-  sleep(30);
-  
-  while (1) {
-    pthread_mutex_lock(&mutex);
-    hour = 12 ;//datetime.h;
-    pthread_mutex_unlock(&mutex);
-
-    if(hour >= 10 && hour <= 18) {
-
-      fp = popen("~/.sh/status/shell_scripts/stocks.sh usim5","r");
-
-      if (fp != NULL ){
-	fscanf(fp,"%s",status);
-	fscanf(fp,"%f",&var);
-	fscanf(fp,"%f",&perc);
-	fscanf(fp,"%f",&atual);
-
-	lucro = atual*STOCK_QTTY - inicial;
-	if(inicial != 0)
-	  full_perc = 100*lucro/inicial;
-	else
-	  full_perc = 0;
-      }
-
-      pthread_mutex_lock(&mutex);
-      stocks.var = var;
-      stocks.perc = perc;
-      stocks.atual = atual;
-      stocks.full_perc = full_perc;
-      stocks.status = status;
-      stocks.lucro = lucro;
-      total = stocks.lucro + stocks2.lucro;
-      pthread_mutex_unlock(&mutex);
-    }
-    else {
-      pthread_mutex_lock(&mutex);
-      strcpy(status,"fechado");
-      stocks.status = status;
-      pthread_mutex_unlock(&mutex);
-    }
-    sleep(30);
-  } 
-}
 
 
 
