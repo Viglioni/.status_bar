@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define NUMTHREADS 7
+#define NUMTHREADS 8
 
 
 // headers
@@ -26,7 +26,7 @@ void *getBrightness(void *arg);
 char *weekrussian(int num);
 char *monthrussian(int num);
 char *dayrussian(int num);
-
+void *getWifi( void *arg);
 // structures
 
 
@@ -51,6 +51,7 @@ volatile char *battery = "";
 volatile char *time_now = "";
 volatile char *date = "";
 volatile char *bright = "";
+volatile char *wifi = "";
 // main
 
 int main() {
@@ -75,6 +76,8 @@ int main() {
   err[i] = pthread_create(&(th[i]),NULL,&getBattery,NULL);
   i++;
   err[i] = pthread_create(&(th[i]),NULL,&getBrightness,NULL);
+   i++;
+  err[i] = pthread_create(&(th[i]),NULL,&getWifi,NULL);
 
   for (int i=0; i<NUMTHREADS; i++) {
     if (err[i] != 0)
@@ -100,11 +103,33 @@ void *printInfo(void *arg) {
     pthread_mutex_lock(&mutex);
 
     // print com uma thread de stock
-    sprintf(output,"echo '%s %s ∵ %s ∵ %s ∵ %s ∵ %s'", date, time_now,vol, bright, memory, battery);
+    sprintf(output,"echo '%s %s ∵ %s ∵ %s ∵ %s ∵ %s ∵ %s'", date, time_now,vol, bright, memory, battery, wifi);
     
     system(output);
     pthread_mutex_unlock(&mutex);
     usleep(200000);
+  }
+  return NULL;
+}
+
+void *getWifi( void *arg) {
+  char name[30], phrase[30];
+  FILE *fp;
+  int scanf_result = -1;
+  while(1){
+    sprintf(name, "error");
+    fp = popen("iwgetid -r","r");
+    if(fp != NULL) {
+      scanf_result = fscanf(fp,"%s",name);
+      if( scanf_result == -1 ) { sprintf(name, "disconnected"); }
+      sprintf(phrase, "wifi: %s", name);
+      fclose(fp);
+    }
+    fp = NULL;
+    pthread_mutex_lock(&mutex);
+    wifi = phrase;
+    pthread_mutex_unlock(&mutex);
+    sleep(1);
   }
   return NULL;
 }
@@ -125,7 +150,7 @@ void *getBattery(void *arg) {
       fscanf(f_total, "%f", &total);
       fscanf(f_status, "%s", status);
       bat = actual/total*100;
-      sprintf(phrase, "Battery: %.0f%% %s", bat, status);
+      sprintf(phrase, "Battery %.0f%% %s", bat, status);
       fclose(f_actual);
       fclose(f_total);
       fclose(f_status);
@@ -157,7 +182,7 @@ void *getBrightness(void *arg){
     if (fp != NULL ){
       fscanf(fp,"%f",&brightness);
       brightness *= 100;
-      sprintf(phrase, "☼: %.0f%%", brightness);
+      sprintf(phrase, "☼ %.0f%%", brightness);
       pclose(fp);
     }
     
@@ -185,7 +210,7 @@ void *getVolume(void *arg) {
     
     if (fp != NULL ){
       fscanf(fp,"%d",&volume);
-      sprintf(phrase, "♫: %d%%", volume);
+      sprintf(phrase, "♫ %d%%", volume);
       pclose(fp);
     }
     
@@ -206,7 +231,7 @@ void *getMemory(void *arg) {
     fp = popen("~/.status_bar/shell_scripts/memory.sh","r");
 
     if (fp != NULL ){
-      fgets(mem,30,fp);
+      fgets(mem,20,fp);
       pclose(fp);
     }
     fp = NULL;

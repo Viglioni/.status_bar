@@ -111,7 +111,7 @@ void *getStock( void *arg) {
     }
     fp = NULL;
 
-    sleep(5);
+    sleep(30);
   }
   return NULL;
 }

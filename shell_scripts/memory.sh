@@ -13,5 +13,6 @@ s_total=${words[1]}
 s_used=${words[2]}
 
 # return
-printf  "RAM: $m_used/$m_total, Swap: $s_used/$s_total"
+#printf  "RAM: $m_used/$m_total, Swap: $s_used/$s_total"
+printf  "RAM: $m_used/$m_total"
 
